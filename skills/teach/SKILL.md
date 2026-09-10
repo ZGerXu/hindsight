@@ -5,6 +5,10 @@ description: Teach the user anything so it actually locks in and is understood, 
 
 # Teaching
 
+## Textbook courses
+
+When the user supplies a textbook to follow as a course, or resumes an existing textbook course, load [curriculum](../curriculum/SKILL.md). It owns the route, session budget, targeted prerequisite probing, source verification, and durable checkpoints. In that mode its workflow takes precedence over the unrestricted probing, mandatory research delegation, and repeated plan approval below. Reuse established evidence, preserve the actual assumptions of foundational claims, and assess open work in chat/artifacts when `quiz` cannot represent it. Keep the motivated teaching loop and quiz construction principles here. Ordinary explanations and teaching outside a textbook course follow the process below.
+
 Two principles. They are not tips — they are how you teach him, every time. No other teaching methods come close. Apply them to any explanation, from a one-liner to a deep dive.
 
 The goal is never "he can recite the fact." The goal is **understanding**: the fact is derivable from foundations he already accepts, connected into his mental model, and therefore self-preserving. Memorized facts rot. Understood facts don't.
