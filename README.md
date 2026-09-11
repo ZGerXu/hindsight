@@ -9,7 +9,7 @@
 - `skills/visualize/` — 当某个想法用图更清晰时，为课程补一张正确且极简的示意图
 - `extensions/ask-user-question.ts` — 通过 UI 弹窗向学习者提问
 - `extensions/quiz.ts` — 可判分的选择题，即时反馈（✓/✗、正确答案、解析）
-- `extensions/md-log.ts` — 将会话镜像到 markdown 文件（配合 Obsidian 渲染）
+- `extensions/md-log.ts` — 自动保存课程讲课原文，并将完整历史持续同步到用户指定的 Markdown 阅读文档
 - `extensions/visual-tools/` — 可视化子代理使用的渲染工具
 - `agents/` — `researcher`、`svg-maker`、`mermaid-maker`：系统委派的子代理
 
@@ -40,9 +40,28 @@ node .pi/skills/curriculum/scripts/pdf-source.mjs "path/to/textbook.pdf" --out "
 
 在学习项目根目录下运行上例（若已在 `.pi` 目录内则去掉 `.pi/` 前缀）。它返回 JSON 摘要，并写入以 PDF 的 SHA-256 命名的 Markdown 缓存，保留物理页边界。空白/可疑页面保留为显式警告；印刷页码与内容仍需人工复核。退出码 2 表示未提取到文本，1 表示出错。
 
-课程记录存放在 `<learning-root>/curricula/<course-id>/`，learning root 为当前目录（在项目 `.pi` 目录内运行时取其父目录）。`course.md` 记录书目与审计结论，`roadmap.md` 是完整路线，`units/` 存放详细任务，`progress.md` 是权威的当前状态，`sessions/` 保存证据与可恢复的检查点。续学完全基于这些文件（包括未完成的问答或练习），不依赖旧聊天记录。保存由代理在检查点处执行，而非后台 session hook；异常终止可能丢失最后一个检查点之后的内容。
+课程记录存放在 `<learning-root>/curricula/<course-id>/`，learning root 为当前目录（在项目 `.pi` 目录内运行时取其父目录）。`course.md` 记录书目与审计结论，`roadmap.md` 是完整路线，`units/` 存放详细任务，`progress.md` 是权威的当前状态，`sessions/` 保存证据与可恢复的检查点。续学根据这些文件恢复待回答问题、未完成推导与下一步。学习状态由代理在检查点处保存，自动转录由扩展事件保存，两者有各自的职责。
 
-`md-log` 必须指向**单独的新转录文件**：链接会回填并覆盖目标文件，绝不要指向课程记录或检查点日志。现有的教学、测验、提问与可视化扩展接口保持不变。
+开始课程或新聊天续学时，`curriculum` 自动调用扩展提供的 `curriculum_transcript` 工具，讲解、公式、代码和问答随事件保存到 **`curricula/<course-id>/transcripts/archive.md`**。无需用户事先调用 `md-log`，也无需每次结束时提醒保存。`transcripts/state.json` 只保存转录身份及阅读文档绑定。新聊天由 skill 重新定位、绑定课程，扩展不会猜选最近修改的课程。
+
+用户可以随时把完整讲课资料同步到自己使用的已有文档：
+
+```text
+/md-log "E:/Notes/强化学习.md"
+/md-unlog
+```
+
+`md-log` 从**整门课程的自动转录**回填，包含之前没调用过插件的会话。链接之后仍先保存课程原本，再更新用户文档；以后新会话绑定同一课程时自动恢复这个同步目标。`md-unlog` 只解除外部同步，课程原本继续记录，再次链接即可补齐解除期间的内容。换一个目标会将全部原本同步到新文档。
+
+目标须为课程存储目录之外的已有 `.md` 文件。扩展只更新该课程带标记的转录区域，保留用户在区域外的笔记；重复链接不会重复插入历史。若生成区域被手工修改，报告冲突并保留文件。外部目标不可写时，课程原本仍保存，并在后续事件、会话恢复或重新链接时重试。一般相对链接及可定位的 `viz/` 图片转换为文件 URL，资源仍需可访问；公式和代码保留。
+
+每门课程遵循单会话写入约定；不支持多个进程同时写同一课程或阅读文档。升级后的自动保存从成功绑定开始，已丢失的旧原话无法由进度摘要还原；保留的旧 pi 会话可以显式导入。强制终止前尚未完成的流式消息也可能缺失。详细数据流、历史导入及故障恢复见 [自动转录与同步设计](skills/curriculum/references/transcription.md)。更新扩展后，在 pi 中执行 `/reload`，下一次课程学习会自动绑定。
+
+转录回归测试使用 Node.js 22.18+，在本仓库目录执行（测试均使用临时目录）：
+
+```text
+node --experimental-strip-types --test tests/md-log.test.mjs
+```
 
 ## 通用教学（teach）
 

@@ -67,7 +67,7 @@ Put the embed directly in your teaching reply, using Obsidian's wikilink embed w
 ![[viz-<slug>-<timestamp>.png|500]]
 ```
 
-That's all. The `md-log` extension mirrors your reply text verbatim into the linked `.md`, and Obsidian resolves the embed by filename anywhere in the vault (the maker saves into the project's `viz` folder, which is inside the vault) — so it renders inline in the lesson automatically. Width `|500` is a good default; use larger for dense diagrams. Introduce the visual in a sentence, then let it carry the idea — don't narrate every element back in prose.
+The `md-log` extension records the reply and resolves available images in the project's `viz` folder to standard Markdown file URLs, so a reading document outside the project vault can locate them too. The image file must remain accessible. Obsidian can resolve unchanged wiki embeds within its vault; `|500` is a useful width hint there, while exported standard Markdown uses the reader's image sizing. Introduce the visual in a sentence, then let it carry the idea — don't narrate every element back in prose.
 
 ## Why this is reliable
 

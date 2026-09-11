@@ -7,7 +7,7 @@ started_at: "{{utc_timestamp}}"
 
 # {{日期}} · 学习记录
 
-保存观察与检查点，不作为当前状态面板，也不与 md-log 关联。每个检查点追加以下结构，填写后保留完整的首尾标记。
+保存观察与检查点，不作为当前状态面板。讲课与问答原文由扩展自动写入 [课程转录](../transcripts/archive.md)，本日志只保存必要证据，不作为 md-log 的同步目标。每个检查点追加以下结构，填写后保留完整的首尾标记。
 
 <!-- checkpoint:{{checkpoint_id}}:begin -->
 ## 检查点 {{checkpoint_id}}

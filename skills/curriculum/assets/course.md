@@ -5,6 +5,7 @@ course_dir: "{{absolute_course_directory}}"
 source_path: "{{absolute_pdf_path}}"
 source_sha256: "{{full_sha256}}"
 source_cache: "source/{{full_sha256}}.md"
+transcript: "transcripts/archive.md"
 pdf_pages: {{physical_page_count}}
 created_at: "{{utc_timestamp}}"
 ---
@@ -18,6 +19,7 @@ created_at: "{{utc_timestamp}}"
 - 背景自述：{{用户已提供的信息；与已验证能力分开}}
 - 能力证据与缺口：见 [当前进度](progress.md) 和对应学习记录。
 - [完整路线](roadmap.md) · [当前进度](progress.md)
+- 讲课与问答自动保存在 [课程转录](transcripts/archive.md)；指定阅读文档后会同步全部已存内容，设置由扩展维护。
 
 ## 教材解析与审查覆盖
 

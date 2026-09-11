@@ -1,6 +1,6 @@
 # Markdown state and recovery
 
-Read this before modifying or resuming a course. The files are the memory; the next session must work without the prior conversation. This is an agent-operated Markdown workflow, not an automatic session hook or a multi-writer database.
+Read this before modifying or resuming a course. The files are the memory; the next session must work without the prior conversation. Learning state uses agent-operated Markdown checkpoints, with one writer per course. Presentation content is recorded independently by the `md-log` extension's event hooks; see [automatic transcription](transcription.md).
 
 ## File ownership and identity
 
@@ -16,6 +16,8 @@ Use the templates in `assets/`; their `{{...}}` tokens are authoring placeholder
 | `progress.md` | Sole authoritative current learner state, checkpoint pointer, evidence summary, resume instructions |
 | `sessions/<id>.md` | Historical observations and recoverable checkpoint snapshots; never a competing current-status dashboard |
 | `source/<sha256>.md` | Rebuildable extractor output; never edit it to correct or annotate the textbook |
+| `transcripts/archive.md` | Extension-owned, automatic course-wide reading transcript: teaching, learner text, questions and returned feedback |
+| `transcripts/state.json` | Extension-owned archive identity and explicitly selected reading-document path; no learner state or assessment keys |
 
 Keep assessment answers out of upcoming unit cards and pending prompts. Rubrics may describe required reasoning but must not give away the specific unanswered result. Re-read verified source material to construct an answer key when posing a quiz; save answer/feedback in the journal only after the learner has answered or explicitly chosen “I don't know.”
 
@@ -51,7 +53,7 @@ For **each** meaningful step completion, response, pending question, stop, or ro
 
 The initial checkpoint has a null parent; subsequent snapshots must replace the template's null with the actual parent ID. Starting a new session does not itself change mastery. Before handing off a question, the snapshot includes the actual prompt, necessary inputs, whether it is unanswered, and where to continue. For a partial derivation, include confirmed premises and the last established intermediate result. For a coding task, link the actual file and describe the remaining task. Do not save only “continue chapter 2.”
 
-No guaranteed hook runs on process termination. Recovery is therefore to the last complete saved checkpoint; unsaved replies may need to be supplied again. If a write fails, report that it was not saved and retain the last durable state.
+No guaranteed hook runs on process termination. Learning-state recovery is therefore to the last complete saved checkpoint. A newer automatic transcript may retain an actual reply whose assessment was not checkpointed: inspect that specific reply as evidence, assess it, then create the missing checkpoint rather than silently crediting mastery. If the reply is absent too, it may need to be supplied again. If a write fails, report which artifact was not saved and retain the last durable state.
 
 ## Recovery without chat history
 
@@ -75,4 +77,4 @@ On a new PDF fingerprint, retain the previous cache and record old/new edition i
 
 Report required module completion against **all** module exit criteria, and separately the completed/expanded active units, skipped items, and review needs. State when future units are not yet detailed. An expanded-unit fraction is not the whole-book completion percentage. A module with unreviewed required coverage cannot be declared completed merely because its first few units are done.
 
-`md-log` can overwrite its target on linking and does not restore learning state into the agent. If requested, create a fresh file under `transcripts/` and give the user its `/md-log <absolute-path>` command; do not pretend the extension exposes a callable logging tool. Never use a journal as that transcript, and never reuse a prior session's transcript for a new backfill.
+Automatic transcripts are always saved inside the course's `transcripts/` directory. The agent binds recording through `curriculum_transcript`; the user need not invoke `/md-log` to preserve lessons. The user's explicit `/md-log <existing-note.md>` command synchronizes the complete archive into an owned region of that external reading document. Linking never resets the archive or course progress, and unlinking never stops course recording. Do not manually write either transcript output or put whole lectures into checkpoint journals. Follow [automatic transcription](transcription.md) for ownership, sync failures, and legacy-history recovery.
