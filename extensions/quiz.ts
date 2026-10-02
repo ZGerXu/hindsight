@@ -110,7 +110,7 @@ const QuizParams = Type.Object({
 	}),
 	explanation: Type.String({
 		description:
-			"REQUIRED. Explanation revealed AFTER the user answers (shown whether they got it right or wrong). Use it to reinforce why the correct answer is correct.",
+			'REQUIRED. Explanation revealed AFTER the user answers. Explain why the correct answer is correct. To reference an option, use its stable value in {{option:VALUE}}, e.g. "Option {{option:environment_reward}} is correct". The tool replaces each placeholder with the final display number AFTER shuffling. Never hardcode option numbers or letters in shuffled quizzes; direct references like "option 2" or "选项 2" are rejected. Explanations without option references are also valid.',
 	}),
 	shuffle: Type.Optional(
 		Type.Boolean({
@@ -192,6 +192,24 @@ function resolveCorrect(
 		indices.push(idx);
 	}
 	return { indices: Array.from(new Set(indices)).sort((a, b) => a - b) };
+}
+
+// Explanation references need the same value-to-display-position binding as
+// the answer key. Resolve once so the UI, agent, and transcript share the text.
+function resolveExplanation(explanation: string, options: QuizOption[], shuffled: boolean): string {
+	const reference = /\{\{option:([^{}]*)\}\}/g;
+	const literalText = explanation.replace(reference, "");
+	if (shuffled && /(?:选项|\boptions?\b|\bchoices?\b)\s*[#（(]?\s*(?:\d+|[A-D]\b)|第\s*\d+\s*(?:个)?(?:选项|项)/i.test(literalText)) {
+		throw new Error("explanation must reference options by {{option:VALUE}}, not literal positions, because options are shuffled");
+	}
+	const text = explanation.replace(reference, (_match, raw: string) => {
+		const value = raw.trim();
+		const index = options.findIndex((option) => option.value === value);
+		if (index < 0) throw new Error(`explanation references unknown option value "${value}"; use an existing value in {{option:VALUE}}`);
+		return String(index + 1);
+	});
+	if (text.includes("{{option:")) throw new Error("explanation has a malformed option reference; use {{option:VALUE}}");
+	return text;
 }
 
 function createEditorTheme(theme: any): EditorTheme {
@@ -287,6 +305,9 @@ function buildResult(
 		text = `User answered ${verdict}.\nSelected: ${selectedStr}\nCorrect: ${correctStr}`;
 		if (note) text += `\nUser's note: ${note}`;
 	}
+	// The agent also needs the displayed order when interpreting a distractor;
+	// the option order in its original tool call is no longer authoritative.
+	text += `\nOptions (display order):\n${displayedOptions.map((o) => `${o.index}. ${o.label}`).join("\n")}`;
 	if (explanation) text += `\nExplanation: ${explanation}`;
 
 	return {
@@ -886,6 +907,7 @@ export default function quiz(pi: ExtensionAPI) {
 			'correctAnswer is REQUIRED and is the option value, not a position number. Single-select: one string (e.g. "mercury"). Multi-select: an array of strings (e.g. ["belize", "niue"]).',
 			"Always pass the option's `value` string as correctAnswer — it is self-checking and prevents miscounting positions. A value that matches no option is a hard error.",
 			"explanation is REQUIRED — always say why the correct answer is correct.",
+			'In explanation, reference options ONLY by stable value placeholders: "选项 {{option:environment_reward}}" or "Option {{option:environment_reward}}". These resolve to final display numbers after shuffling. Never reuse draft positions such as "选项 2", "option 2", or "option A". Unknown values and literal positions in shuffled explanations are errors. You may also explain the claims without numbering them.',
 			"Multi-select is graded as an exact-set match: the user is correct only if they select every correct option and no incorrect ones.",
 			"There is no free-text mode. An 'I don't know' choice is ALWAYS added automatically — provide ONLY the real, gradable options (at least two). Never add your own uncertainty/opt-out option like 'I don't know', 'I'm not sure', or 'Not sure'; that is handled for you and a manual one would be redundant or gradable-as-wrong.",
 			"If a result comes back as dontKnow, the user honestly did not know and did NOT guess — treat it as a genuine knowledge gap to teach into, not as a wrong answer.",
@@ -894,7 +916,7 @@ export default function quiz(pi: ExtensionAPI) {
 			"Guardrail: every distractor must be unambiguously wrong on the intended reading — tempting, but a real error, not a defensible alternative. Don't drift into trick questions.",
 			"Anti-guessing hygiene: don't let the correct answer stand out by form (longest, most precise, most hedged, or the only one in the right format). Keep options similar in length, specificity, and phrasing so it can't be picked from shape alone.",
 			"Set multiSelect: true only when more than one option is correct.",
-			"Options are shuffled before display by default, so don't worry about which position you list the correct answer in. Set shuffle: false only when option order is meaningful (ordered values, or an 'All/None of the above' option that must stay last).",
+			"Options are shuffled before display by default. Drafting the correct claim first does not make it displayed option 1. Use stable values for the answer key and explanation references; use the returned display order for follow-up feedback. Set shuffle: false only when option order is meaningful (ordered values, or an 'All/None of the above' option that must stay last), never as a workaround for explanation references.",
 			"To probe nuance, ask several quick quiz questions and adapt each one based on the previous answers, rather than writing one giant question.",
 			"Don't leak the answer through formatting: keep option phrasing/length even and don't hint which is correct.",
 		],
@@ -902,7 +924,7 @@ export default function quiz(pi: ExtensionAPI) {
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const context = params.details?.trim() || undefined;
-			const explanation = params.explanation.trim();
+			let explanation = params.explanation.trim();
 			const mode: QuizMode = params.multiSelect ? "multi-select" : "single-select";
 
 			let options: QuizOption[];
@@ -917,17 +939,6 @@ export default function quiz(pi: ExtensionAPI) {
 			if (params.shuffle !== false) {
 				options = shuffleOptions(options);
 			}
-
-			// Emit the true (post-shuffle) display order immediately, before the UI
-			// blocks on the user's answer. Listeners such as md-log rely on this to
-			// show the question in the SAME order the user actually sees it, instead
-			// of the pre-shuffle order the agent originally wrote in its tool call.
-			// Deliberately omits correctIndices/explanation — this fires before the
-			// user has answered and must not leak the answer.
-			onUpdate?.({
-				content: [{ type: "text", text: "Awaiting user response..." }],
-				details: { options: options.map((o, i) => ({ index: i + 1, label: o.label })) },
-			});
 
 			const { indices: correctIndices, error: correctError } = resolveCorrect(
 				params.correctAnswer as string | string[],
@@ -952,11 +963,26 @@ export default function quiz(pi: ExtensionAPI) {
 				return unavailableResult(params.question, mode, `quiz ${correctError}`, correctIndices, context);
 			}
 
+			try {
+				explanation = resolveExplanation(explanation, options, params.shuffle !== false);
+			} catch (e) {
+				return {
+					...unavailableResult(params.question, mode, `quiz ${(e as Error).message}`, [], context),
+					isError: true,
+				};
+			}
+
 			if (!ctx.hasUI) {
 				return unavailableResult(params.question, mode, "quiz requires interactive mode UI", correctIndices, context);
 			}
 
 			return withUILock(async () => {
+				// Publish only validated questions, in the order the UI will show.
+				// Do not leak the answer key or resolved explanation before answering.
+				onUpdate?.({
+					content: [{ type: "text", text: "Awaiting user response..." }],
+					details: { options: options.map((o, i) => ({ index: i + 1, label: o.label })) },
+				});
 				const response =
 					mode === "single-select"
 						? await askSingleChoice(ctx, params.question, context, options, correctIndices, explanation)
