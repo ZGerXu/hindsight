@@ -6,6 +6,37 @@ import { userBlock, stripSkillBlocks, assistantBlock, questionCallout, answerCal
 
 export const QA_TOOLS = new Set(["quiz", "ask_user_question"]);
 
+// Apply presentation rewrites without changing code examples or citation metadata.
+function rewriteProse(text, rewrite) {
+	let fence = null;
+	let comment = false;
+	return text.split(/(?<=\n)/).map((line) => {
+		// Include blockquote prefixes used by Q&A callouts; a shorter nested fence
+		// cannot close a longer code fence. Preserve even an unfinished code block.
+		const marker = line.replace(/^(?:[ \t]*>[ \t]?)+/, "").trimEnd().match(/^[ \t]*(`{3,}|~{3,})(.*)$/);
+		if (fence) {
+			if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+			return line;
+		}
+		if (!comment && marker) { fence = marker[1]; return line; }
+		let prefix = "";
+		if (comment) {
+			const end = line.indexOf("-->");
+			if (end < 0) return line;
+			prefix = line.slice(0, end + 3);
+			line = line.slice(end + 3);
+			comment = false;
+		}
+		return prefix + line.split(/(`+[^`\n]*`+|<!--.*?(?:-->|(?=\r?\n?$)))/g).map((part, index) => {
+			if (index % 2) {
+				if (part.startsWith("<!--") && !part.endsWith("-->")) comment = true;
+				return part;
+			}
+			return rewrite(part);
+		}).join("");
+	}).join("");
+}
+
 // Make lesson assets readable even when the mirror is outside the project vault.
 // Leave fenced/inline code untouched. Unknown wiki targets retain their original syntax.
 export function portableLinks(text, cwd) {
@@ -16,7 +47,7 @@ export function portableLinks(text, cwd) {
 		try { decoded = decodeURI(file); } catch { /* A literal % is valid in a local filename. */ }
 		return pathToFileURL(path.resolve(cwd, decoded)).href + (fragment === undefined ? "" : `#${fragment}`);
 	};
-	const rewrite = (text) => text.split(/(`+[^`\n]*`+)/g).map((part, index) => index % 2 ? part : part
+	return rewriteProse(text, (part) => part
 			.replace(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, file, label) => {
 				const candidates = [path.resolve(cwd, file), path.resolve(cwd, "viz", file), path.resolve(learningRoot(cwd), "viz", file)];
 				const asset = candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
@@ -26,24 +57,14 @@ export function portableLinks(text, cwd) {
 				(_match, label, target, title = "") => {
 					const url = absolute(target.startsWith("<") ? target.slice(1, -1) : target);
 					return `${label}(${url.startsWith("file:") ? `<${url}>` : url}${title})`;
-				}))
-		.join("");
-	let fence = null;
-	return text.split(/(?<=\n)/).map((line) => {
-		// Include blockquote prefixes used by Q&A callouts; a shorter nested fence
-		// cannot close a longer code fence. Preserve even an unfinished code block.
-		const marker = line.replace(/^(?:[ \t]*>[ \t]?)+/, "").trimEnd().match(/^[ \t]*(`{3,}|~{3,})(.*)$/);
-		if (fence) {
-			if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
-			return line;
-		}
-		if (marker) { fence = marker[1]; return line; }
-		return rewrite(line);
-	}).join("");
+			}));
 }
 
 export function record(key, text, cwd) {
-	return { id: digest(key), text: portableLinks(text, cwd) };
+	const id = digest(key);
+	const scoped = rewriteProse(text, (part) => part.replace(/\[\^book-([a-z0-9][a-z0-9-]*)\]/g,
+		(match, label) => label.startsWith(`${id}-`) ? match : `[^book-${id}-${label}]`));
+	return { id, text: portableLinks(scoped, cwd) };
 }
 
 export function messageRecord(message, cwd) {

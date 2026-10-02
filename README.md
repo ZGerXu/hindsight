@@ -55,13 +55,9 @@ node .pi/skills/curriculum/scripts/pdf-source.mjs "path/to/textbook.pdf" --out "
 
 目标须为课程存储目录之外的已有 `.md` 文件。扩展只更新该课程带标记的转录区域，保留用户在区域外的笔记；重复链接不会重复插入历史。若生成区域被手工修改，报告冲突并保留文件。外部目标不可写时，课程原本仍保存，并在后续事件、会话恢复或重新链接时重试。一般相对链接及可定位的 `viz/` 图片转换为文件 URL，资源仍需可访问；公式和代码保留。
 
+教材引用用标准 Markdown 脚注，让正文专注讲解。脚注定义包含可读 PDF 链接及 `textbook-ref:v1` 隐藏 JSON，保存文件 SHA-256、绝对 URI、PDF 物理页码及已核实的图号／短引文，供后续 Obsidian 插件解析为可跳转的注解标签。`md-log` 按事件为脚注加命名空间，避免多会话重名；旧转录保持原样。完整语法与解析约定见 [教材引用与注解协议](skills/curriculum/references/citations.md)。本仓库此次只提供协议和转录支持，插件另行开发。
+
 每门课程遵循单会话写入约定；不支持多个进程同时写同一课程或阅读文档。升级后的自动保存从成功绑定开始，已丢失的旧原话无法由进度摘要还原；保留的旧 pi 会话可以显式导入。强制终止前尚未完成的流式消息也可能缺失。详细数据流、历史导入及故障恢复见 [自动转录与同步设计](skills/curriculum/references/transcription.md)。更新扩展后，在 pi 中执行 `/reload`，下一次课程学习会自动绑定。
-
-转录回归测试使用 Node.js 22.18+，在本仓库目录执行（测试均使用临时目录）：
-
-```text
-node --experimental-strip-types --test tests/md-log.test.mjs
-```
 
 ## 通用教学（teach）
 

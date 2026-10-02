@@ -4,7 +4,7 @@ Use this reference when building or revising the route. The result is a sequenti
 
 ## Establish what has actually been read
 
-The extractor preserves PDF physical pages, numbered from 1 including covers. Printed page numbers and chapter titles require inspection: front matter, inserts, and numbering resets make a single global offset unreliable. Cite `PDF pp. 23–26; printed pp. 7–10; §2.1` only when each part is known. Otherwise leave the printed reference unknown. Also record exercise numbers, figure numbers, or section headings when useful.
+The extractor preserves PDF physical pages, numbered from 1 including covers. Printed page numbers and chapter titles require inspection: front matter, inserts, and numbering resets make a single global offset unreliable. In audit/course records, write `PDF pp. 23–26; printed pp. 7–10; §2.1` only when each part is known. Otherwise leave the printed reference unknown. Also record exercise numbers, figure numbers, or section headings when useful. Learner-facing explanations and feedback use [textbook citation footnotes](citations.md) instead of repeating these locations in prose.
 
 First read the contents and preface to identify the author's intended audience, progression, and conventions. Across **all** chapters inspect goals, prerequisite-bearing passages, representative explanations, and exercises. Save each original section's page range and destination. If no contents page exists, derive the inventory from actual headings; record uncertain boundaries instead of inventing chapter names.
 
