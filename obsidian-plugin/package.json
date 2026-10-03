@@ -1,0 +1,29 @@
+{
+  "name": "foresight",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Foresight: the Obsidian companion for Hindsight",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test:obsidian": "node --import tsx scripts/smoke-obsidian.mjs",
+    "install:local": "node scripts/install.mjs"
+  },
+  "dependencies": {
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-gfm-footnote": "^2.1.0",
+    "micromark-extension-gfm-footnote": "^2.1.0"
+  },
+  "devDependencies": {
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "1.13.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
