@@ -44,6 +44,57 @@ export function mirrorTarget(file, cwd, courseDir) {
 	return resolved;
 }
 
+function mirrorRegion(text, id, file) {
+	const prefix = `<!-- md-log:${id}:begin sha256=`;
+	const end = `<!-- md-log:${id}:end -->`;
+	const start = text.indexOf(prefix);
+	const endIndex = text.indexOf(end);
+	if (start < 0 && endIndex < 0) {
+		if (text.includes(`<!-- md-log:${id}:`)) throw new Error(`Damaged mirror markers: ${file}`);
+		return null;
+	}
+	const header = text.slice(start).match(/^<!-- md-log:[a-f0-9-]+:begin sha256=([a-f0-9]{64}) -->\r?\n/);
+	const bodyStart = start + (header?.[0].length ?? 0);
+	if (start < 0 || !header || endIndex < bodyStart ||
+		text.indexOf(prefix, start + prefix.length) >= 0 || text.indexOf(end, endIndex + end.length) >= 0) {
+		throw new Error(`Damaged or duplicate mirror markers: ${file}`);
+	}
+	const body = text.slice(bodyStart, endIndex);
+	// Editors may normalize line endings without changing the lesson.
+	if (digest(body) !== header[1] && digest(body.replaceAll("\r\n", "\n")) !== header[1]) {
+		throw new Error(`The generated transcript was edited; preserve those edits outside its markers before relinking: ${file}`);
+	}
+	return { start, end: endIndex + end.length, body };
+}
+
+function eventBodies(text) {
+	const parts = text.replaceAll("\r\n", "\n").split(/^<!-- md-log:event:([a-f0-9]{64}) -->\n/gm);
+	const events = new Map();
+	for (let index = 1; index < parts.length; index += 2) events.set(parts[index], parts[index + 1]);
+	return { preamble: parts[0], events };
+}
+
+// A pre-course /md-log creates a session mirror. Once all its content is in the
+// course, keeping that frozen copy at the end falsely suggests recording stopped.
+// Remove only intact generated copies; their original archives remain on disk.
+function consolidateSessionRegions(text, source, courseId, file) {
+	const sourceEvents = eventBodies(source).events;
+	const sourceBodies = new Set(sourceEvents.values());
+	const sessions = [...text.matchAll(/^<!-- md-log:archive:([a-f0-9-]+) -->\r?\n# 会话转录\r?\n/gm)];
+	for (const [, id] of sessions) {
+		if (id === courseId) continue;
+		let region;
+		try { region = mirrorRegion(text, id, file); } catch { continue; } // Preserve edited or damaged inactive regions.
+		if (!region) continue;
+		const { preamble, events } = eventBodies(region.body);
+		if (preamble !== `<!-- md-log:archive:${id} -->\n# 会话转录\n\n`) continue;
+		const covered = [...events].every(([eventId, body]) => sourceEvents.get(eventId) === body ||
+			(/^## 会话 [^\n]+\n\n<!-- pi-session:[^\n]+ -->\n\n$/.test(body) && sourceBodies.has(body)));
+		if (covered) text = text.slice(0, region.start) + text.slice(region.end);
+	}
+	return text;
+}
+
 /** One writer per course, as with progress.md. Markdown is the durable source;
  * state.json only remembers identity and the explicitly selected mirror. */
 export class TranscriptArchive {
@@ -88,39 +139,25 @@ export class TranscriptArchive {
 		if (next !== previous) atomicWrite(this.file, next);
 	}
 
-	sync(file) {
+	sync(file, consolidateSessions = false) {
 		const body = fs.readFileSync(this.file, "utf8");
 		const current = fs.readFileSync(file, "utf8");
 		const prefix = `<!-- md-log:${this.state.id}:begin sha256=`;
 		const end = `<!-- md-log:${this.state.id}:end -->`;
-		const startIndex = current.indexOf(prefix);
-		const endIndex = current.indexOf(end);
+		const region = mirrorRegion(current, this.state.id, file);
 		const block = `${prefix}${digest(body)} -->\n${body}${end}`;
 		let next;
-		if (startIndex < 0 && endIndex < 0) {
-			// A damaged begin marker must not cause a second copy to be appended.
-			if (current.includes(`<!-- md-log:${this.state.id}:`)) throw new Error(`Damaged mirror markers: ${file}`);
+		if (!region) {
 			next = current + (current && !current.endsWith("\n\n") ? "\n\n" : "") + block + "\n";
 		} else {
-			const header = current.slice(startIndex).match(/^<!-- md-log:[a-f0-9-]+:begin sha256=([a-f0-9]{64}) -->\r?\n/);
-			const bodyStart = startIndex + (header?.[0].length ?? 0);
-			if (startIndex < 0 || !header || endIndex < bodyStart ||
-				current.indexOf(prefix, startIndex + prefix.length) >= 0 || current.indexOf(end, endIndex + end.length) >= 0) {
-				throw new Error(`Damaged or duplicate mirror markers: ${file}`);
-			}
-			const expected = header[1];
-			const oldBody = current.slice(bodyStart, endIndex);
-			// Editors may normalize line endings without changing the lesson.
-			if (digest(oldBody) !== expected && digest(oldBody.replaceAll("\r\n", "\n")) !== expected) {
-				throw new Error(`The generated transcript was edited; preserve those edits outside its markers before relinking: ${file}`);
-			}
-			next = current.slice(0, startIndex) + block + current.slice(endIndex + end.length);
+			next = current.slice(0, region.start) + block + current.slice(region.end);
 		}
+		if (consolidateSessions) next = consolidateSessionRegions(next, body, this.state.id, file);
 		if (next !== current) atomicWrite(file, next);
 	}
 
-	link(file) {
-		this.sync(file);
+	link(file, consolidateSessions = false) {
+		this.sync(file, consolidateSessions);
 		this.state.mirror = file;
 		this.saveState();
 	}

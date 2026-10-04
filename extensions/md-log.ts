@@ -56,7 +56,7 @@ export default function mdLog(pi: ExtensionAPI) {
 	function sync(ctx: any) {
 		if (archive?.state.mirror) {
 			const target = mirrorTarget(archive.state.mirror, ctx.cwd, binding?.directory);
-			archive.sync(target);
+			archive.sync(target, Boolean(binding));
 		}
 		status(ctx);
 	}
@@ -194,7 +194,7 @@ export default function mdLog(pi: ExtensionAPI) {
 						path.join(learningRoot(ctx.cwd), "curricula", ".md-log", ctx.sessionManager.getSessionId()), "会话转录");
 				}
 				replay(ctx);
-				archive.link(resolved);
+				archive.link(resolved, Boolean(binding));
 				if (!binding) pi.appendEntry("md-log", { file: resolved, archiveDir: archive.directory });
 				status(ctx);
 				ctx.ui.notify(`Linked: ${resolved} (complete archive synced; automatic recording continues)`, "success");
