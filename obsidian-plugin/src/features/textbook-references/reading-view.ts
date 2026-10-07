@@ -6,10 +6,11 @@ import { createCitationButton } from "./ui";
 export async function renderReadingView(element: HTMLElement, renderContext: MarkdownPostProcessorContext, context: FeatureContext, documents: CitationDocumentStore): Promise<void> {
   if (!context.settings.textbookReferences.enabled) return;
   const section = renderContext.getSectionInfo(element);
-  const source = section ? {
+  let source = section ? {
     text: section.text,
     document: documents.parse(`${renderContext.sourcePath}#${renderContext.docId}`, section.text)
   } : await documents.read(context.plugin.app, renderContext.sourcePath);
+  if (!source?.document.citations.size) source = await documents.read(context.plugin.app, renderContext.sourcePath);
   if (!source?.document.citations.size) return;
   const { document } = source;
   const cache = context.plugin.app.metadataCache.getCache(renderContext.sourcePath);

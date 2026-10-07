@@ -14,6 +14,8 @@ const archivePath = join(root, "../..", archive);
 const archiveBytes = readFileSync(archivePath);
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const citations = parseCitations(archiveBytes.toString("utf8"));
+const figure = [...citations.citations.values()].find((citation) => citation.reference.locator?.startsWith("Figure "));
+assert.ok(figure, "真实转录应包含图号引用");
 const checks = [];
 const report = { appVersion: obsidian("version"), checks, sourceHashBefore: digest(archiveBytes) };
 const fixture = `Foresight-Smoke-${Date.now()}.md`;
@@ -26,7 +28,7 @@ function waitFor(code, timeout = 10000) {
 }
 function screenshot(name) { obsidian("dev:screenshot", `path=${join(results, name).replaceAll("\\", "/")}`); }
 function reference(id, overrides = {}, version = "1") {
-  const base = citations.occurrences[0].citation.reference;
+  const base = figure.reference;
   const ref = { source_sha256: base.source_sha256, source_uri: base.source_uri, pdf_page: base.pdf_page, ...overrides };
   return `[^${id}]: [原书·${id}](<${ref.source_uri}#page=${ref.pdf_page}>) <!-- textbook-ref:v${version} ${JSON.stringify(ref)} -->`;
 }
@@ -47,12 +49,13 @@ function highlight(page) {
 }
 
 try {
+  obsidian("dev:cdp", "method=Emulation.setFocusEmulationEnabled", 'params={"enabled":true}');
   evaluate(`for(const modal of document.querySelectorAll(".modal-content")){if(modal.querySelector("h2")?.textContent!=="原书·book-agent")continue;const button=[...modal.querySelectorAll("button")].find(button=>button.textContent==="在 Obsidian 中打开原文");button?.click();}return true;`);
   initialSettings = evaluate(`const plugin=app.plugins.plugins["foresight"];if(!plugin)throw new Error("插件未加载");return JSON.parse(JSON.stringify(plugin.settings));`);
   check("插件已在真实 Obsidian 中加载", true);
-  evaluate(`const plugin=app.plugins.plugins["foresight"];plugin.settings.textbookReferences.enabled=true;plugin.settings.textbookReferences.openInSplit=true;await plugin.saveSettings();const file=app.vault.getFileByPath(${JSON.stringify(archive)});window.__foresightSmokeLeaf=app.workspace.getLeavesOfType("markdown").find(leaf=>leaf.view.file?.path===file.path)??app.workspace.getLeaf("tab");await window.__foresightSmokeLeaf.openFile(file);await window.__foresightSmokeLeaf.setViewState({type:"markdown",state:{file:file.path,mode:"preview"}});window.__foresightSmokeLeaf.view.previewMode.applyScroll(180);return true;`);
+  evaluate(`const plugin=app.plugins.plugins["foresight"];plugin.settings.textbookReferences.enabled=true;plugin.settings.textbookReferences.openInSplit=true;await plugin.saveSettings();const file=app.vault.getFileByPath(${JSON.stringify(archive)});window.__foresightSmokeLeaf=app.workspace.getLeavesOfType("markdown").find(leaf=>leaf.view.file?.path===file.path)??app.workspace.getLeaf("tab");await window.__foresightSmokeLeaf.openFile(file);await window.__foresightSmokeLeaf.setViewState({type:"markdown",state:{file:file.path,mode:"preview"}});app.workspace.setActiveLeaf(window.__foresightSmokeLeaf,{focus:true});window.__foresightSmokeLeaf.view.previewMode.rerender(true);window.__foresightSmokeLeaf.view.previewMode.applyScroll(180);return true;`);
   const observed = new Map();
-  for (const line of [180, 205, 241, 270, 315]) {
+  for (const line of [...new Set(citations.occurrences.map((occurrence) => archiveBytes.toString("utf8").slice(0, occurrence.from).split("\n").length - 1))]) {
     scroll(line);
     for (const button of previewButtons()) observed.set(button.key, button);
   }
@@ -66,23 +69,23 @@ try {
   report.agentHighlight = highlight(35);
   check("点击真实转录可在原生 PDF 阅读器中高亮 agent 原文", report.agentHighlight.pages === 827);
   screenshot("archive-pdf-quote.png");
-  const communication = [...citations.citations.values()].find((citation) => citation.label === "原书·三条通信通道");
+  const communication = [...citations.citations.values()].find((citation) => citation.reference.pdf_page === 36 && citation.label.includes("environment"));
   click(communication.key);
   report.communicationHighlight = highlight(36);
-  const figure = citations.occurrences[0].citation;
-  scroll(181);
+  const figureOccurrence = citations.occurrences.find((occurrence) => occurrence.citation.key === figure.key);
+  scroll(archiveBytes.toString("utf8").slice(0, figureOccurrence.from).split("\n").length - 1);
   waitFor(`return [...window.__foresightSmokeLeaf.view.previewMode.containerEl.querySelectorAll(".foresight-citation")].some(button=>button.dataset.citationKey===${JSON.stringify(figure.key)});`);
   click(figure.key);
-  report.figureHighlight = highlight(33);
-  check("图号引用定位并高亮 Figure 1.2", true);
+  report.figureHighlight = highlight(figure.reference.pdf_page);
+  check(`图号引用定位并高亮 ${figure.reference.locator}`, true);
   check("连续点击复用同一原书 PDF 窗格", evaluate(`return app.workspace.getLeavesOfType("pdf").filter(leaf=>leaf.getViewState().state?.file==="Deep Reinforcement Learning Hands-On.pdf").length;`) === 1);
 
   const fixtureSource = [
     "# 教材引用集成测试", "", "个人脚注[^personal] 与行内脚注^[个人行内记录]。教材[^book-figure]。", "",
-    "[^personal]: 个人脚注仍应显示。", "", reference("book-figure", { ...citations.occurrences[0].citation.reference }), "",
+    "[^personal]: 个人脚注仍应显示。", "", reference("book-figure", { ...figure.reference }), "",
     "> [!success] Quiz", "> callout 内的 agent 定义[^book-agent]。", ">", "> " + reference("book-agent", { ...agent.reference }), "",
     "未知版本[^book-unknown]，格式错误[^book-invalid]，错误版本教材[^book-wrong]，页级引用[^book-page]，旧位置教材[^book-moved]。", "",
-    reference("book-unknown", {}, "2"), reference("book-invalid").replace('"pdf_page":33', '"pdf_page":0'),
+    reference("book-unknown", {}, "2"), reference("book-invalid").replace(`"pdf_page":${figure.reference.pdf_page}`, '"pdf_page":0'),
     reference("book-wrong", { source_sha256: "0".repeat(64) }), reference("book-page", { pdf_page: 32, locator: undefined, quote: undefined }),
     reference("book-moved", { ...agent.reference, source_uri: "file:///E:/old-location/Moved%20Book.pdf" }), "",
     "代码示例：", "```markdown", "示例[^book-figure] [注1]", reference("book-code"), "```", "",
@@ -90,10 +93,10 @@ try {
     `<!-- md-log:event:${"2".repeat(64)} -->`, "", "第二条历史引用[注1]。", "", reference("book-legacy", { pdf_page: 37 }).replaceAll("[^book-legacy]", "[注1]")
   ].join("\n");
   fixtureCreated = true;
-  evaluate(`app.workspace.setActiveLeaf(window.__foresightSmokeLeaf,{focus:true});window.__foresightSmokeFixture=await app.vault.create(${JSON.stringify(fixture)},${JSON.stringify(fixtureSource)});window.__foresightSmokeFixtureLeaf=app.workspace.getLeaf("tab");window.__foresightSmokeLeaf=window.__foresightSmokeFixtureLeaf;await window.__foresightSmokeLeaf.openFile(window.__foresightSmokeFixture);await window.__foresightSmokeLeaf.setViewState({type:"markdown",state:{file:${JSON.stringify(fixture)},mode:"preview"}});await app.workspace.revealLeaf(window.__foresightSmokeLeaf);return true;`);
+  evaluate(`app.workspace.setActiveLeaf(window.__foresightSmokeLeaf,{focus:true});window.__foresightSmokeFixture=await app.vault.create(${JSON.stringify(fixture)},${JSON.stringify(fixtureSource)});window.__foresightSmokeFixtureLeaf=app.workspace.getLeaf("tab");window.__foresightSmokeLeaf=window.__foresightSmokeFixtureLeaf;await window.__foresightSmokeLeaf.openFile(window.__foresightSmokeFixture);await window.__foresightSmokeLeaf.setViewState({type:"markdown",state:{file:${JSON.stringify(fixture)},mode:"preview"}});await app.workspace.revealLeaf(window.__foresightSmokeLeaf);app.workspace.setActiveLeaf(window.__foresightSmokeLeaf,{focus:true});return true;`);
   waitFor(`return !!window.__foresightSmokeLeaf.view.previewMode.containerEl.querySelector(".foresight-citation");`);
   const fixtureButtons = previewButtons();
-  check("普通脚注与行内脚注不影响原书标签定位", fixtureButtons.find((button) => button.key === "book-figure")?.page === 33);
+  check("普通脚注与行内脚注不影响原书标签定位", fixtureButtons.find((button) => button.key === "book-figure")?.page === figure.reference.pdf_page);
   check("未知版本和错误页码保持普通脚注显示", !fixtureButtons.some((button) => ["book-unknown", "book-invalid", "book-code"].includes(button.key)));
   check("代码示例未被替换", evaluate(`return window.__foresightSmokeLeaf.view.previewMode.containerEl.querySelector("pre code").textContent.includes("[^book-figure]");`));
   check("重名历史标记按事件绑定到不同页", fixtureButtons.filter((button) => button.key.endsWith(":注1")).map((button) => button.page).join(",") === "29,37");
@@ -124,7 +127,7 @@ try {
   waitFor(`return !!window.__foresightSmokeLeaf.view.previewMode.containerEl.querySelector(".foresight-citation");`);
   evaluate(`const button=[...window.__foresightSmokeLeaf.view.previewMode.containerEl.querySelectorAll(".foresight-citation")].find(button=>button.dataset.citationKey==="book-agent");button.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,clientX:600,clientY:300}));return true;`);
   evaluate(`const item=[...document.querySelectorAll(".menu-item")].find(item=>item.textContent.includes("查看引用详情"));if(!item)throw new Error("引用菜单未打开");item.click();return true;`);
-  check("右键详情包含原文锚点与物理页码", waitFor(`window.__foresightSmokeDetails=[...document.querySelectorAll(".modal-content")].at(-1);return window.__foresightSmokeDetails?.textContent.includes("An agent is somebody") && window.__foresightSmokeDetails?.textContent.includes("PDF 第 35 页");`));
+  check("右键详情包含原文锚点与物理页码", waitFor(`window.__foresightSmokeDetails=[...document.querySelectorAll(".modal-content")].at(-1);return window.__foresightSmokeDetails?.textContent.includes(${JSON.stringify(agent.reference.quote)}) && window.__foresightSmokeDetails?.textContent.includes("PDF 第 35 页");`));
   screenshot("citation-details.png");
   evaluate(`const button=[...window.__foresightSmokeDetails.querySelectorAll("button")].find(button=>button.textContent==="在 Obsidian 中打开原文");if(!button)throw new Error("详情中的原文按钮不存在");button.click();return true;`);
   check("详情组件的打开原文按钮可关闭对话框并定位 PDF", waitFor(`return !window.__foresightSmokeDetails.isConnected;`) && highlight(35));
@@ -148,6 +151,7 @@ try {
   check("真实 archive.md 的内容未被改写", report.sourceHashBefore === report.sourceHashAfter);
   const leafSetup = `const file=app.vault.getFileByPath(${JSON.stringify(archive)});window.__foresightSmokeLeaf=app.workspace.getLeavesOfType("markdown").find(leaf=>leaf.view.file?.path===file.path)??app.workspace.getLeaf("tab");await window.__foresightSmokeLeaf.openFile(file);await window.__foresightSmokeLeaf.setViewState({type:"markdown",state:{file:file.path,mode:"preview"}});window.__foresightSmokeLeaf.view.previewMode.applyScroll(203);return true;`;
   cleanup(leafSetup);
+  try { obsidian("dev:cdp", "method=Emulation.setFocusEmulationEnabled", 'params={"enabled":false}'); } catch (error) { cleanupErrors.push(error.message); }
   if (cleanupErrors.length) { report.cleanupErrors = cleanupErrors; report.passed = false; }
   writeFileSync(join(results, "obsidian-smoke.json"), JSON.stringify(report, null, 2));
   console.log(`Report: ${join(results, "obsidian-smoke.json")}`);
