@@ -11,7 +11,7 @@
 - `extensions/quiz.ts` — 可判分的选择题，即时反馈（✓/✗、正确答案、解析）
 - `extensions/md-log.ts` — 自动保存课程讲课原文，并将完整历史持续同步到用户指定的 Markdown 阅读文档
 - `extensions/visual-tools/` — 可视化子代理使用的渲染工具
-- `obsidian-plugin/` — Foresight：可扩展的 Obsidian 学习伴侣，解析教材注解并在原生 PDF 阅读器中定位原文
+- `obsidian-plugin/` — Foresight：Obsidian 学习伴侣，解析教材注解定位 PDF 原文，并以独立回顾弹层预览、定位历史讲解与问答
 - `agents/` — `researcher`、`svg-maker`、`mermaid-maker`：系统委派的子代理
 
 ## 环境要求
@@ -59,6 +59,8 @@ node .pi/skills/curriculum/scripts/pdf-source.mjs "path/to/textbook.pdf" --out "
 先调用 `md-log` 再绑定课程时，课程同步会合并已被课程原本完整覆盖、内容哈希有效的通用会话阅读区域，避免文档末尾留下停止更新的重复副本。包含额外内容或个人修改的区域继续保留，通用会话原本也保留。
 
 教材引用用标准 Markdown 脚注，让正文专注讲解。脚注定义包含可读 PDF 链接及 `textbook-ref:v1` 隐藏 JSON，保存文件 SHA-256、绝对 URI、PDF 物理页码及已核实的图号／短引文。配套的 [Foresight](obsidian-plugin/README.md) 将其显示为注解标签，点击即可在 Obsidian 中打开来源页，并在文本层可匹配时高亮原文。`md-log` 按事件为脚注加命名空间，避免多会话重名；旧转录保持原样。完整语法与解析约定见 [教材引用与注解协议](skills/curriculum/references/citations.md)。插件的构建、安装和扩展结构见其 README。
+
+引用旧讲解、quiz 问答与学习者代码时，正文先补足必要背景，用 `[^history-1]` 和 `history-ref:v1` 绑定真实转录 UUID 与事件 ID，不再把 U001／D01 当作讲解出处。`curriculum_history` 在已绑定的课程内查找原记录，返回可核对的题目与已呈现回答。Foresight 的 **回顾·内容名** 使用独立标签和 Markdown 弹层：鼠标悬停查看被引内容，点击在当前阅读副本或原本中精确定位事件／短引文。历史与教材注解可分别开关；原始历史文档保留，规则从新输出生效。完整约定见 [历史学习引用协议](skills/curriculum/references/history-references.md)。
 
 每门课程遵循单会话写入约定；不支持多个进程同时写同一课程或阅读文档。升级后的自动保存从成功绑定开始，已丢失的旧原话无法由进度摘要还原；保留的旧 pi 会话可以显式导入。强制终止前尚未完成的流式消息也可能缺失。详细数据流、历史导入及故障恢复见 [自动转录与同步设计](skills/curriculum/references/transcription.md)。更新扩展后，在 pi 中执行 `/reload`，下一次课程学习会自动绑定。
 

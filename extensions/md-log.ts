@@ -8,8 +8,10 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { pathToFileURL } from "node:url";
 import { TranscriptArchive, learningRoot, mirrorTarget } from "./md-log/archive.mjs";
 import { QA_TOOLS, record, messageRecord, questionRecord, answerRecord, branchRecords } from "./md-log/records.mjs";
+import { findHistory } from "./md-log/history.mjs";
 
 type Binding = { directory: string; startEntryId: string | null };
 
@@ -99,6 +101,26 @@ export default function mdLog(pi: ExtensionAPI) {
 	pi.on("session_tree", async (_event, ctx) => { restore(ctx); });
 	pi.on("agent_end", async (_event, ctx) => {
 		try { replay(ctx); sync(ctx); } catch (error) { report(ctx, error); }
+	});
+
+	pi.registerTool({
+		name: "curriculum_history",
+		label: "Course history",
+		description: "Find recorded lesson/quiz evidence in the bound course before writing history-ref footnotes. Search with a specific phrase, then use the returned archive_id, archive_uri and exact event IDs. Includes a quiz's adjacent recorded question/answer; never returns an unrecorded answer key. Read-only; does not assess mastery.",
+		parameters: {
+			type: "object",
+			properties: { query: { type: "string", description: "Specific phrase from the earlier lesson, question or feedback." } },
+			required: ["query"], additionalProperties: false,
+		} as any,
+		async execute(_id: string, params: { query: string }) {
+			try {
+				if (!archive || !binding) throw new Error("Bind the course with curriculum_transcript first.");
+				const result = { archive_uri: pathToFileURL(archive.file).href, ...findHistory(fs.readFileSync(archive.file, "utf8"), params.query) };
+				return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
+			} catch (error) {
+				return { content: [{ type: "text", text: String(error) }], details: {}, isError: true };
+			}
+		},
 	});
 
 	pi.registerTool({

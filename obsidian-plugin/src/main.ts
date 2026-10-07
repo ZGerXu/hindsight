@@ -3,6 +3,7 @@ import { loadSettings, type LearningSettings } from "./core/settings";
 import { PdfSourceResolver } from "./core/pdf/source-resolver";
 import { PdfNavigator } from "./core/pdf/navigator";
 import { TextbookReferencesFeature } from "./features/textbook-references";
+import { HistoryReferencesFeature } from "./features/history-references";
 import { LearningSettingsTab } from "./settings-tab";
 
 export default class ForesightPlugin extends Plugin {
@@ -23,6 +24,7 @@ export default class ForesightPlugin extends Plugin {
     this.register(() => context.pdf.dispose());
     const references = new TextbookReferencesFeature(context);
     this.addChild(references);
+    this.addChild(new HistoryReferencesFeature(context));
     this.addSettingTab(new LearningSettingsTab(this.app, this, context));
     this.addCommand({
       id: "check-textbook-references",

@@ -29,3 +29,43 @@
 .foresight-citation-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .foresight-reference-definition { display: none; }
 .foresight-reference-source { color: var(--text-muted); overflow-wrap: anywhere; }
+
+.foresight-history-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  margin: 0 0.2em;
+  padding: 0.05em 0.25em;
+  height: auto;
+  border: none;
+  border-bottom: 1px dashed var(--text-accent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-accent);
+  font: inherit;
+  font-size: 0.8em;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+.foresight-history-reference:hover { background: var(--background-modifier-hover); }
+.foresight-history-reference:focus-visible { outline: 2px solid var(--text-accent); outline-offset: 2px; }
+.foresight-history-icon { display: inline-flex; }
+.foresight-history-icon svg { width: 1em; height: 1em; }
+.foresight-history-definition { display: none; }
+.popover.hover-popover.foresight-history-popover {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 88vw);
+  max-height: min(600px, 78vh);
+  overflow: hidden;
+  padding: 16px;
+  border-top: 3px solid var(--text-accent);
+}
+.foresight-history-heading { font-weight: 600; font-size: var(--font-ui-medium); }
+.foresight-history-location { margin: 4px 0 12px; color: var(--text-muted); font-size: var(--font-ui-small); }
+.foresight-history-content { width: 100%; min-height: 0; max-height: min(480px, 60vh); overflow: auto; font-size: var(--font-text-size); }
+.foresight-history-event + .foresight-history-event { border-top: 1px solid var(--background-modifier-border); margin-top: 16px; padding-top: 12px; }
+.foresight-history-event > :first-child { margin-top: 0; }
+.foresight-history-jump { margin-top: 8px; font-size: var(--font-ui-small); }
+.foresight-history-error { color: var(--text-error); }

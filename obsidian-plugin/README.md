@@ -1,6 +1,6 @@
 # Foresight
 
-Foresight 是 Hindsight AI 学习框架的 Obsidian 配套插件。当前功能将课程的原书引用显示为可点击注解，并在 Obsidian 原生 PDF 阅读器中打开教材、定位来源页和高亮可匹配的原文。
+Foresight 是 Hindsight AI 学习框架的 Obsidian 配套插件。教材引用显示为原书注解，在原生 PDF 阅读器中定位来源页和高亮原文；历史学习引用使用独立的回顾标签和 Markdown 弹层，预览、定位旧讲解、quiz 问答和学习者代码。
 
 ## 使用
 
@@ -12,6 +12,10 @@ Foresight 是 Hindsight AI 学习框架的 Obsidian 配套插件。当前功能�
 
 命令面板提供 **Foresight: 检查当前笔记的教材引用**。插件设置可开关教材注解、选择是否并排打开原书，以及解除教材绑定。
 
+**历史学习回顾**：在阅读视图或实时预览中，鼠标悬停 **回顾·内容名** 虚线标签，直接查看所引用的原讲解，或 quiz 的题目、实际回答与解析，公式与代码按 Markdown 渲染。弹层中每条记录的 **前往这段记录** 按钮可分别定位题目或回答；点击标签定位第一个事件，提供 `quote` 时选中对应原文。Ctrl / Cmd + 点击使用新标签页，普通点击复用对应笔记窗格。源码模式和光标所在标记行保留可编辑的原始脚注。
+
+历史标签使用自己的 `history` 图标、虚线样式、`HistoryUI` 与原生 `HoverPopover` 弹层，不复用教材按钮、教材 tooltip、详情 Modal 或 PDF 导航。设置中的 **显示学习回顾** 与教材开关互相独立。
+
 PDF 必须位于当前 vault 中。引用中的原书位置失效时，插件按 SHA-256 在 vault 中查找同版本 PDF；也可用右键菜单绑定移动后的教材，绑定前仍会校验指纹。不会通过相似书名替换版本。
 
 ## 引用与定位约定
@@ -19,6 +23,12 @@ PDF 必须位于当前 vault 中。引用中的原书位置失效时，插件按
 遵循 [教材引用协议 v1](../skills/curriculum/references/citations.md)：正文 `[^book-…]` 对应标准脚注定义，定义包含可读 PDF 链接及 `<!-- textbook-ref:v1 {...} -->`。AST 解析支持正文、嵌套 blockquote / callout、局部 ID 与转录的事件 SHA-256 ID，跳过代码和注释中的示例。
 
 当前真实转录中存在历史 `[注N]` 写法。插件只将附有有效协议数据的定义与同一 `md-log:event` 内的标记关联，因此多条消息复用 `[注1]` 时不会跨消息串联。原始课程转录和同步笔记不会被改写。
+
+历史学习引用遵循独立的 [历史学习引用协议 v1](../skills/curriculum/references/history-references.md)：`[^history-…]` 定义包含可读转录链接及 `<!-- history-ref:v1 {...} -->`，通过 `archive_id` 与 `event_ids` 关联真实原记录，可选 `quote` 为已核对的连续 Markdown 原文。模型先用 `curriculum_history` 获取这些数据，md-log 再为局部脚注加事件命名空间。单元／诊断编号不是可跳转目标。
+
+优先解析当前笔记中的同课程记录，因此原本同步到 Notebook 或另一阅读副本后仍能就地跳转。当前笔记没有所选事件时读取 vault 中的原本，验证 UUID、事件顺序、事件存在性与原文锚点；原本 URI 失效时按 UUID 查找，多份候选不猜选。UUID 不匹配、记录缺失或原文变化会显示明确提示并停止跳转；不使用旧行号或相似标题兜底。每次点击重新读取当前内容，前插文字不会破坏定位。
+
+无插件时历史引用仍显示普通脚注及转录文件链接，`#mdlog-…` 的精确事件导航由 Foresight 提供。旧转录中的自然语言编号不会被自动替换；迁移需逐条核对原依据，也不能直接改写带内容哈希的同步区域。
 
 未知协议版本、格式错误、缺字段、无效页码或链接/元数据不一致的引用保持原始显示。普通个人脚注保持原有行为。
 
@@ -51,6 +61,13 @@ obsidian-plugin/
         reading-view.ts         # 阅读视图与 callout 后处理
         live-preview.ts         # CodeMirror 实时预览组件
         ui.ts                   # 标签、详情与教材绑定
+      history-references/
+        index.ts                # 独立功能注册与生命周期
+        parser.ts               # 历史脚注、转录事件与协议校验
+        source.ts               # 当前副本／原本解析与 UUID 核对
+        reading-view.ts         # 阅读视图与 callout 标签
+        live-preview.ts         # 独立 CodeMirror 回顾组件
+        ui.ts                   # 回顾弹层、Markdown 渲染与事件跳转
   scripts/                      # 构建、安装、真实应用测试
   dist/                         # 可安装产物，生成且不提交
   test-results/                 # 真实应用报告与截图，生成且不提交
@@ -89,5 +106,17 @@ npm run test:obsidian
 脚本读取真实 `archive.md`，在应用中点击标签并核对 PDF.js 文本高亮，生成截图和 JSON 报告；它还创建一份专用临时笔记检查边界场景，并在结束时删除该笔记。通过前后 SHA-256 核对真实课程转录未被修改。CLI 路径和 vault 名称可分别用 `OBSIDIAN_CLI`、`OBSIDIAN_VAULT` 指定。
 
 需要 Pi Agent 验证时按项目要求使用 `glm-5.3`，运行类型检查和真实应用测试后读取 JSON 报告，核对检查结果与原始转录的 SHA-256。不要使用 `--no-extensions`，该选项同时禁用 Pi 的内建工具扩展。
+
+历史引用的完整验收：
+
+```powershell
+npm run test:history
+npm run test:history:pi
+npm run test:history:obsidian
+```
+
+第一步验证协议、事件边界、quiz 配对、命名空间、重放与镜像同步；第二步用 Pi Agent 的 `zai-coding-cn/glm-5.3` 和真实 md-log 扩展在隔离的课程副本里生成引用；第三步用官方 CLI/CDP 在运行中的 Obsidian 内实际移动鼠标、点击标签，检查问答／公式／代码弹层、阅读与实时预览、同文件及跨文件定位、短引文选择、源码可编辑、开关、卸载与原本移动。Windows 窗口被遮挡导致渲染暂停时，测试临时启用 CDP 焦点模拟，结束后关闭。脚本清理临时笔记并恢复原窗格与功能设置，前后核对真实 `Notebook.md` 和 `archive.md` 的哈希。报告与截图保存在 `test-results/`，不提交到仓库。
+
+Pi 验收脚本使用用户目录下的托管 Pi launcher；两个真实应用脚本都需要项目的实际课程转录、正在运行的 Obsidian 与官方 CLI。它们不是浏览器 mock 测试。
 
 实现依据：[Obsidian Markdown 后处理](https://docs.obsidian.md/Plugins/Editor/Markdown+post+processing)、[编辑器扩展](https://docs.obsidian.md/Plugins/Editor/Editor+extensions)、[官方 CLI](https://help.obsidian.md/cli)。

@@ -8,6 +8,9 @@
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
+    "test:history": "node --import tsx --test scripts/test-history.mjs",
+    "test:history:pi": "node --import tsx scripts/test-history-pi.mjs",
+    "test:history:obsidian": "node --import tsx scripts/smoke-history-obsidian.mjs",
     "test:obsidian": "node --import tsx scripts/smoke-obsidian.mjs",
     "install:local": "node scripts/install.mjs"
   },

@@ -3,7 +3,7 @@
   "name": "Foresight",
   "version": "0.1.0",
   "minAppVersion": "1.6.0",
-  "description": "课程学习伴侣：将教材引用显示为可交互注解，并在 Obsidian 中定位 PDF 原文。",
+  "description": "课程学习伴侣：教材注解定位 PDF 原文，独立回顾弹层预览并精确定位历史讲解与问答。",
   "author": "ZGerx",
   "isDesktopOnly": true
 }

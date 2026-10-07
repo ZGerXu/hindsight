@@ -62,8 +62,8 @@ export function portableLinks(text, cwd) {
 
 export function record(key, text, cwd) {
 	const id = digest(key);
-	const scoped = rewriteProse(text, (part) => part.replace(/\[\^book-([a-z0-9][a-z0-9-]*)\]/g,
-		(match, label) => label.startsWith(`${id}-`) ? match : `[^book-${id}-${label}]`));
+	const scoped = rewriteProse(text, (part) => part.replace(/\[\^(book|history)-([a-z0-9][a-z0-9-]*)\]/g,
+		(match, kind, label) => label.startsWith(`${id}-`) ? match : `[^${kind}-${id}-${label}]`));
 	return { id, text: portableLinks(scoped, cwd) };
 }
 
